@@ -1,0 +1,11 @@
+#add secondary smtp
+Set-Mailbox -Identity "example@it.nordddb.com" -EmailAddresses @{Add="example@nordic.nordddb.com"}
+
+#add send as permission
+Add-RecipientPermission -Identity "david.molt@nordic.nordddb.com" -Trustee "david.molt@nordic.nordddb.com" -AccessRights SendAs
+
+#check permission
+Get-Mailbox -Identity "david.molt@nordic.nordddb.com" | Select -ExpandProperty EmailAddresses
+
+#check permissions mailbox
+Get-RecipientPermission -Identity "david.molt@nordic.nordddb.com" | Where {$_.AccessRights -eq "SendAs"}
