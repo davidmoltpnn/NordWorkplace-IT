@@ -1,0 +1,5 @@
+#reviewer calendar permission (to allow for all to see subjects of calendar events) - Danmark request
+Set-MailboxFolderPermission -Identity “user@example.com:\Calendar" -User Default -AccessRights Reviewer
+
+#validate/check permissions
+Get-MailboxFolderPermission -Identity “user@example.com:\Calendar"
