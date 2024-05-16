@@ -1,0 +1,47 @@
+# In order to sync passwords between local AD and Entra we need to tell Entra Cloud Sync that accounts with the same email address in local AD and Entra are the same account.
+
+# Run one of these commands in Powershell ISE to fix this.
+
+# If a single account need to be synced:
+
+Import-Module -Name ActiveDirectory #--Import module ActiveDirectory after installing feature "RSAT-AD-PowerShell"
+Connect-AzureAD
+$base64 = [system.convert]::ToBase64String(([GUID](Get-ADUser -Identity "tests.testsson").objectGUID.tostring()).ToByteArray())
+Set-AzureADUser -ObjectID "5138d090-c0a9-4a80-b63e-f457fedfe10f" -ImmutableID $base64 
+
+
+# If multiple accounts need to be synced:
+# OBS: "Start-ADSyncSyncCycle -PolicyType delta" this command is for Azure AD Connect so when running it may have error, you can ignore this error.
+
+# Import the Active Directory module
+Import-Module ActiveDirectory
+# Prompt the user to enter the OU
+$OU = Read-Host "Enter the Organizational Unit (OU) distinguished name (e.g., 'OU=Users, DC=domain,DC=com')"
+# Get all users from the specified OU
+$ADusers = Get-ADUser -Filter * -SearchBase $OU -Properties SamAccountName, UserPrincipalName
+Connect-AzureAD
+# Clear Immutable ID for each user in the specified OU
+foreach ($user in $ADusers) {
+    # Extract the objectID
+    $objectID = (Get-AzureADUser -ObjectId $user.UserPrincipalName).ObjectId
+    # Set ImmutableID to null
+    Set-AzureADUser -ObjectId $objectID -ImmutableId $null
+    # Output for verification
+    Write-Host "ImmutableID cleared for $($user.UserPrincipalName)"
+    # Pause while AD syncs to Azure AD
+    Write-Host "Syncing to Azure AD"
+    Start-ADSyncSyncCycle -PolicyType delta
+    Start-Sleep -Seconds 120
+    # Update the user's ImmutableID in Office 365
+    # Extract the ObjectID
+    $azureADUser = Get-AzureADUser -ObjectId $user.UserPrincipalName
+    $objectID = $azureADUser.ObjectId
+    # Get the user's msDS-ConsistencyGuid attribute as byte array
+    $consistencyGuidBytes = (Get-ADUser -Identity $user.SamAccountName -Properties 'msDS-ConsistencyGuid')."msDS-ConsistencyGuid"
+    # Convert byte array to Base64 string
+    $immutableId = [System.Convert]::ToBase64String($consistencyGuidBytes)
+    # Update ImmutableID
+    Set-AzureADUser -ObjectId $objectID -ImmutableId $immutableId
+    Write-Host "Successfully updated ImmutableID for $($user.UserPrincipalName) in Office 365."
+    Start-ADSyncSyncCycle -PolicyType delta
+}
